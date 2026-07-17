@@ -56,7 +56,6 @@ jobs:
 
             local has_glibc=0
             local has_musl=0
-
             while IFS= read -r -d '' f; do
               if file "$f" | grep -qi 'ELF'; then
                 if strings "$f" | grep -qiE 'GLIBC_|ld-linux|libc\.so\.6'; then has_glibc=1; fi
@@ -79,12 +78,7 @@ jobs:
             gh_url="https://github.com/crystal-lang/crystal/releases/download/${latest_tag}/crystal-${latest_tag}-1-${suffix[$s]}.tar.gz"
             alpine_url="https://dev.alpinelinux.org/archive/crystal/crystal-${latest_tag}-aarch64-alpine-linux-musl.tar.gz"
 
-            # default to GitHub asset
             url="$gh_url"
-
-            # if GitHub asset missing:
-            # - for aarch64-linux fallback to alpine musl
-            # - for others fail
             if ! curl -fsI "$url" >/dev/null; then
               if [[ "$s" == "aarch64-linux" ]]; then
                 url="$alpine_url"
@@ -114,22 +108,18 @@ jobs:
               print $0
               print "        latestVersion = \"" version "\";"
               print ""
-              print "        # binary tarball hashes by nix system"
               print "        binaryHashes = {"
               cmd = "jq -r '\''to_entries[] | \"          \\\"\"+.key+\"\\\" = \\\"\"+.value+\"\\\";\"'\'' <<< '\''" hashes "'\''"
               while ((cmd | getline l) > 0) print l
               close(cmd)
               print "        };"
               print ""
-              print "        # detected libc flavor in downloaded binary archive"
-              print "        # one of: glibc | musl | hybrid | unknown"
               print "        binaryLibc = {"
               cmd2 = "jq -r '\''to_entries[] | \"          \\\"\"+.key+\"\\\" = \\\"\"+.value+\"\\\";\"'\'' <<< '\''" libcs "'\''"
               while ((cmd2 | getline l2) > 0) print l2
               close(cmd2)
               print "        };"
               print ""
-              print "        # source tarball hash keyed by version"
               print "        srcHashes = {"
               print "          \"" version "\" = \"" src "\";"
               print "        };"
@@ -141,7 +131,6 @@ jobs:
           ' flake.nix > flake.nix.new
 
           mv flake.nix.new flake.nix
-          echo "Updated flake.nix => Crystal ${version}"
 
       - name: Install Nix
         uses: cachix/install-nix-action@v31
@@ -151,9 +140,9 @@ jobs:
       - name: Validate flake
         run: |
           nix --version
-          nix flake check --no-build
-          nix eval .#packages.x86_64-linux.crystal-binary.pname >/dev/null
-          
+          nix flake check --no-build --no-write-lock-file
+          nix eval .#packages.x86_64-linux.crystal-binary.pname --no-write-lock-file >/dev/null
+
       - name: Create PR
         uses: peter-evans/create-pull-request@v7
         with:
