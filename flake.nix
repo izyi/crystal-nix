@@ -31,7 +31,7 @@
 
         binaryLibc = {
           "1.21.0" = {
-            "x86_64-linux" = "musl";
+            "x86_64-linux" = "glibc";
             "aarch64-linux" = "musl";
             "aarch64-darwin" = "unknown";
           };
