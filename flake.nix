@@ -21,17 +21,20 @@
 
         # BEGIN AUTO-GENERATED CRYSTAL METADATA
         latestVersion = "1.21.0";
-
         binaryHashes = {
-          "x86_64-linux" = "sha256-REPLACE_ME";
-          "aarch64-linux" = "sha256-REPLACE_ME";
-          "aarch64-darwin" = "sha256-REPLACE_ME";
+          "1.21.0" = {
+            "x86_64-linux" = "sha256-REPLACE_ME";
+            "aarch64-linux" = "sha256-REPLACE_ME";
+            "aarch64-darwin" = "sha256-REPLACE_ME";
+          };
         };
 
         binaryLibc = {
-          "x86_64-linux" = "glibc";
-          "aarch64-linux" = "musl";
-          "aarch64-darwin" = "unknown";
+          "1.21.0" = {
+            "x86_64-linux" = "glibc";
+            "aarch64-linux" = "musl";
+            "aarch64-darwin" = "unknown";
+          };
         };
 
         srcHashes = {
@@ -41,7 +44,7 @@
 
         binaryUrl = version: rel:
           if system == "aarch64-linux" then
-            let flavor = binaryLibc.${system} or "unknown"; in
+            let flavor = binaryLibc.${version}.${system} or "unknown"; in
             if flavor == "musl" then
               "https://dev.alpinelinux.org/archive/crystal/crystal-v${version}-aarch64-alpine-linux-musl.tar.gz"
             else if flavor == "glibc" then
@@ -58,7 +61,8 @@
 
             src = pkgs.fetchurl {
               url = binaryUrl version rel;
-              sha256 = binaryHashes.${system};
+              sha256 = binaryHashes.${version}.${system}
+                or (throw "Missing binary hash for version=${version}, system=${system}");
             };
 
             nativeBuildInputs = [ pkgs.makeWrapper ];
