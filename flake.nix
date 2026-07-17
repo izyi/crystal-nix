@@ -22,22 +22,18 @@
         # BEGIN AUTO-GENERATED CRYSTAL METADATA
         latestVersion = "1.21.0";
 
-        # binary tarball hashes by nix system
         binaryHashes = {
           "x86_64-linux" = "sha256-REPLACE_ME";
           "aarch64-linux" = "sha256-REPLACE_ME";
           "aarch64-darwin" = "sha256-REPLACE_ME";
         };
 
-        # detected libc flavor in downloaded binary archive
-        # one of: glibc | musl | hybrid | unknown
         binaryLibc = {
           "x86_64-linux" = "glibc";
           "aarch64-linux" = "musl";
           "aarch64-darwin" = "unknown";
         };
 
-        # source tarball hash keyed by version
         srcHashes = {
           "1.21.0" = "sha256-REPLACE_ME";
         };
@@ -75,7 +71,7 @@
 
             meta = with lib; {
               description = "Crystal binary distribution";
-              platforms = builtins.attrNames binaryHashes;
+              platforms = [ "x86_64-linux" "aarch64-linux" "aarch64-darwin" ];
               mainProgram = "crystal";
             };
           };
@@ -129,7 +125,6 @@
 
             installPhase = ''
               runHook preInstall
-
               mkdir -p $out/bin $out/lib/crystal $out/share/doc/crystal
               install -m755 .build/crystal $out/bin/crystal
               cp -r src/* $out/lib/crystal/
@@ -143,7 +138,6 @@
               else
                 echo "warning: crystal manpage not found; skipping"
               fi
-
               runHook postInstall
             '';
 
