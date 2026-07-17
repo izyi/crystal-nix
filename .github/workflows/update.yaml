@@ -1,0 +1,163 @@
+name: Update Crystal latest + hashes + libc metadata
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "19 3 * * *"
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq curl file tar xz-utils coreutils binutils
+
+      - name: Compute latest metadata and patch flake.nix
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          latest_tag="$(curl -fsSL https://api.github.com/repos/crystal-lang/crystal/releases/latest | jq -r .tag_name)"
+          version="${latest_tag#v}"
+
+          systems=("x86_64-linux" "aarch64-linux" "aarch64-darwin")
+          declare -A suffix=(
+            ["x86_64-linux"]="linux-x86_64"
+            ["aarch64-linux"]="linux-aarch64"
+            ["aarch64-darwin"]="darwin-universal"
+          )
+
+          tmp="$(mktemp -d)"
+          trap 'rm -rf "$tmp"' EXIT
+
+          hashes='{}'
+          libcs='{}'
+
+          sri_of_file() {
+            local f="$1"
+            echo "sha256-$(sha256sum "$f" | awk '{print $1}' | xxd -r -p | base64 -w0)"
+          }
+
+          detect_libc() {
+            local archive="$1"
+            local outdir="$2"
+            mkdir -p "$outdir"
+            tar -xf "$archive" -C "$outdir" || true
+
+            local has_glibc=0
+            local has_musl=0
+
+            while IFS= read -r -d '' f; do
+              if file "$f" | grep -qi 'ELF'; then
+                if strings "$f" | grep -qiE 'GLIBC_|ld-linux|libc\.so\.6'; then has_glibc=1; fi
+                if strings "$f" | grep -qiE 'musl|ld-musl'; then has_musl=1; fi
+              fi
+            done < <(find "$outdir" -type f -print0)
+
+            if [[ "$has_glibc" -eq 1 && "$has_musl" -eq 1 ]]; then
+              echo hybrid
+            elif [[ "$has_glibc" -eq 1 ]]; then
+              echo glibc
+            elif [[ "$has_musl" -eq 1 ]]; then
+              echo musl
+            else
+              echo unknown
+            fi
+          }
+
+          for s in "${systems[@]}"; do
+            gh_url="https://github.com/crystal-lang/crystal/releases/download/${latest_tag}/crystal-${latest_tag}-1-${suffix[$s]}.tar.gz"
+            alpine_url="https://dev.alpinelinux.org/archive/crystal/crystal-${latest_tag}-aarch64-alpine-linux-musl.tar.gz"
+
+            # default to GitHub asset
+            url="$gh_url"
+
+            # if GitHub asset missing:
+            # - for aarch64-linux fallback to alpine musl
+            # - for others fail
+            if ! curl -fsI "$url" >/dev/null; then
+              if [[ "$s" == "aarch64-linux" ]]; then
+                url="$alpine_url"
+              else
+                echo "No binary URL for $s"
+                exit 1
+              fi
+            fi
+
+            out="$tmp/$s.tar.gz"
+            curl -fL "$url" -o "$out"
+
+            sri="$(sri_of_file "$out")"
+            libc="$(detect_libc "$out" "$tmp/extract-$s")"
+
+            hashes="$(jq -c --argjson prev "$hashes" --arg k "$s" --arg v "$sri" '$prev + {($k):$v}' <<< '{}')"
+            libcs="$(jq -c --argjson prev "$libcs" --arg k "$s" --arg v "$libc" '$prev + {($k):$v}' <<< '{}')"
+          done
+
+          src_out="$tmp/src.tar.gz"
+          curl -fL "https://github.com/crystal-lang/crystal/archive/refs/tags/${latest_tag}.tar.gz" -o "$src_out"
+          src_sri="$(sri_of_file "$src_out")"
+
+          awk -v version="$version" -v hashes="$hashes" -v libcs="$libcs" -v src="$src_sri" '
+            BEGIN { inblk=0 }
+            /# BEGIN AUTO-GENERATED CRYSTAL METADATA/ {
+              print $0
+              print "        latestVersion = \"" version "\";"
+              print ""
+              print "        # binary tarball hashes by nix system"
+              print "        binaryHashes = {"
+              cmd = "jq -r '\''to_entries[] | \"          \\\"\"+.key+\"\\\" = \\\"\"+.value+\"\\\";\"'\'' <<< '\''" hashes "'\''"
+              while ((cmd | getline l) > 0) print l
+              close(cmd)
+              print "        };"
+              print ""
+              print "        # detected libc flavor in downloaded binary archive"
+              print "        # one of: glibc | musl | hybrid | unknown"
+              print "        binaryLibc = {"
+              cmd2 = "jq -r '\''to_entries[] | \"          \\\"\"+.key+\"\\\" = \\\"\"+.value+\"\\\";\"'\'' <<< '\''" libcs "'\''"
+              while ((cmd2 | getline l2) > 0) print l2
+              close(cmd2)
+              print "        };"
+              print ""
+              print "        # source tarball hash keyed by version"
+              print "        srcHashes = {"
+              print "          \"" version "\" = \"" src "\";"
+              print "        };"
+              inblk=1
+              next
+            }
+            /# END AUTO-GENERATED CRYSTAL METADATA/ { inblk=0; print $0; next }
+            inblk==0 { print $0 }
+          ' flake.nix > flake.nix.new
+
+          mv flake.nix.new flake.nix
+          echo "Updated flake.nix => Crystal ${version}"
+
+      - name: Validate flake
+        run: |
+          nix flake check --no-build
+          nix eval .#packages.x86_64-linux.crystal-binary.pname >/dev/null
+
+      - name: Create PR
+        uses: peter-evans/create-pull-request@v7
+        with:
+          branch: chore/update-crystal-latest
+          delete-branch: true
+          commit-message: "chore: update crystal latest/hash/libc metadata"
+          title: "chore: update Crystal latest + hashes + libc metadata"
+          body: |
+            Automated update:
+            - latest Crystal version
+            - binary hashes per system
+            - libc classification (glibc/musl/hybrid/unknown)
+            - source hash
