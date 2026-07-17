@@ -14,45 +14,35 @@
 
         archMap = {
           "x86_64-linux" = "linux-x86_64";
-          "aarch64-linux" = "linux-aarch64";
-          "aarch64-darwin" = "darwin-universal";
         };
         arch = archMap.${system};
 
-        # BEGIN AUTO-GENERATED CRYSTAL METADATA
         latestVersion = "1.21.0";
         binaryHashes = {
           "1.21.0" = {
             "x86_64-linux" = "sha256-dEVh7jzuGwbRBs+a6ZuAZLTgF1GKxBTW3SPPr+NlYMk=";
-            "aarch64-linux" = "sha256-TzDan/CD3EhWUuPZsE1+gsxMSftuirO6x2y94k2WB3g=";
-            "aarch64-darwin" = "sha256-f8SvVrDLXH6lcD90TGYpuxn/Nro6u/Iy1Q5Aw5og7hY=";
           };
         };
 
         binaryLibc = {
           "1.21.0" = {
             "x86_64-linux" = "glibc";
-            "aarch64-linux" = "musl";
-            "aarch64-darwin" = "unknown";
           };
         };
 
         srcHashes = {
           "1.21.0" = "sha256-Xi1p9WVVOqcofnZXDUVAojG/3xo3874Xn0l+8d+KDZo=";
         };
-        # END AUTO-GENERATED CRYSTAL METADATA
 
         binaryUrl = version: rel:
           if system == "aarch64-linux" then
             let flavor = binaryLibc.${version}.${system} or "unknown"; in
-            if flavor == "musl" then
-              "https://dev.alpinelinux.org/archive/crystal/crystal-v${version}-aarch64-alpine-linux-musl.tar.gz"
-            else if flavor == "glibc" then
-              "https://github.com/crystal-lang/crystal/releases/download/v${version}/crystal-v${version}-${toString rel}-${arch}.tar.gz"
+            if flavor == "glibc" then
+              "https://github.com/crystal-lang/crystal/releases/download/${version}/crystal-${version}-${toString rel}-${arch}.tar.gz"
             else
               throw "Unsupported aarch64-linux libc flavor: ${flavor}"
           else
-            "https://github.com/crystal-lang/crystal/releases/download/v${version}/crystal-v${version}-${toString rel}-${arch}.tar.gz";
+            "https://github.com/crystal-lang/crystal/releases/download/${version}/crystal-${version}-${toString rel}-${arch}.tar.gz";
 
         crystalBinary = { version, rel ? 1 }:
           pkgs.stdenv.mkDerivation {

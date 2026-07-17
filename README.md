@@ -6,7 +6,6 @@
 - `nix run` → run Crystal binary directly
 - `nix build .#crystal-binary` → binary package
 - `nix build .#crystal-source` → build from source
-- GitHub Action auto-updates latest version, hashes, and libc metadata
 
 ## Commands
 

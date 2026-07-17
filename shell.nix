@@ -1,9 +1,5 @@
-(import
-  (
-    let
-      flake = builtins.getFlake (toString ./.);
-      system = builtins.currentSystem;
-    in
-      flake.outputs.devShells.${system}.default
-  )
-)
+let
+  flake = builtins.getFlake (toString ./.);
+  system = builtins.currentSystem;
+in
+  flake.devShells.${system}.default
