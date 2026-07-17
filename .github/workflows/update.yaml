@@ -143,11 +143,17 @@ jobs:
           mv flake.nix.new flake.nix
           echo "Updated flake.nix => Crystal ${version}"
 
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31
+        with:
+          nix_path: nixpkgs=channel:nixos-unstable
+
       - name: Validate flake
         run: |
+          nix --version
           nix flake check --no-build
           nix eval .#packages.x86_64-linux.crystal-binary.pname >/dev/null
-
+          
       - name: Create PR
         uses: peter-evans/create-pull-request@v7
         with:
