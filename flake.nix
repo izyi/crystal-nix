@@ -23,9 +23,9 @@
         latestVersion = "1.21.0";
         binaryHashes = {
           "1.21.0" = {
-            "x86_64-linux" = "sha256-REPLACE_ME";
-            "aarch64-linux" = "sha256-REPLACE_ME";
-            "aarch64-darwin" = "sha256-REPLACE_ME";
+            "x86_64-linux" = "sha256-dEVh7jzuGwbRBs+a6ZuAZLTgF1GKxBTW3SPPr+NlYMk=";
+            "aarch64-linux" = "sha256-TzDan/CD3EhWUuPZsE1+gsxMSftuirO6x2y94k2WB3g=";
+            "aarch64-darwin" = "sha256-f8SvVrDLXH6lcD90TGYpuxn/Nro6u/Iy1Q5Aw5og7hY=";
           };
         };
 
@@ -38,7 +38,7 @@
         };
 
         srcHashes = {
-          "1.21.0" = "sha256-REPLACE_ME";
+          "1.21.0" = "sha256-Xi1p9WVVOqcofnZXDUVAojG/3xo3874Xn0l+8d+KDZo=";
         };
         # END AUTO-GENERATED CRYSTAL METADATA
 
