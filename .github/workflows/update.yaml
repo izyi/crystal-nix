@@ -98,9 +98,11 @@ jobs:
             libcs_for_version="$(jq -c --arg k "$s" --arg v "$libc" '. + {($k):$v}' <<< "$libcs_for_version")"
           done
 
-          # version-scoped maps
           hashes="$(jq -cn --arg ver "$version" --argjson systems "$hashes_for_version" '{($ver): $systems}')"
           libcs="$(jq -cn --arg ver "$version" --argjson systems "$libcs_for_version" '{($ver): $systems}')"
+
+          jq -e --arg ver "$version" '(has($ver) and (.[$ver] | has("x86_64-linux") and has("aarch64-linux") and has("aarch64-darwin")))' <<< "$hashes" >/dev/null
+          jq -e --arg ver "$version" '(has($ver) and (.[$ver] | has("x86_64-linux") and has("aarch64-linux") and has("aarch64-darwin")))' <<< "$libcs" >/dev/null
           jq -e --arg ver "$version" '.[$ver] | type == "object"' <<< "$hashes" >/dev/null
           jq -e --arg ver "$version" '.[$ver] | type == "object"' <<< "$libcs" >/dev/null
 
@@ -108,21 +110,39 @@ jobs:
           curl -fL "https://github.com/crystal-lang/crystal/archive/refs/tags/${latest_tag}.tar.gz" -o "$src_out"
           src_sri="$(sri_of_file "$src_out")"
 
-          awk -v version="$version" -v hashes="$hashes" -v libcs="$libcs" -v src="$src_sri" '
+          # Build nix lines in bash (avoid <<< inside awk-command shell)
+          binary_hashes_block="$(
+            jq -r --arg ver "$version" '
+              .[$ver] | to_entries[] | "            \"" + .key + "\" = \"" + .value + "\";"
+            ' <<< "$hashes"
+          )"
+
+          binary_libc_block="$(
+            jq -r --arg ver "$version" '
+              .[$ver] | to_entries[] | "            \"" + .key + "\" = \"" + .value + "\";"
+            ' <<< "$libcs"
+          )"
+
+          awk -v version="$version" \
+              -v src="$src_sri" \
+              -v bh="$binary_hashes_block" \
+              -v bl="$binary_libc_block" '
             BEGIN { inblk=0 }
             /# BEGIN AUTO-GENERATED CRYSTAL METADATA/ {
               print $0
               print "        latestVersion = \"" version "\";"
               print "        binaryHashes = {"
-              cmd = "jq -r '\''to_entries[] | \"          \\\"\"+.key+\"\\\" = {\" , ( .value | to_entries[] | \"            \\\"\"+.key+\"\\\" = \\\"\"+.value+\"\\\";\" ), \"          };\"'\'' <<< '\''" hashes "'\''"
-              while ((cmd | getline l) > 0) print l
-              close(cmd)
+              print "          \"" version "\" = {"
+              n=split(bh, a, "\n")
+              for (i=1; i<=n; i++) if (a[i] != "") print a[i]
+              print "          };"
               print "        };"
               print ""
               print "        binaryLibc = {"
-              cmd2 = "jq -r '\''to_entries[] | \"          \\\"\"+.key+\"\\\" = {\" , ( .value | to_entries[] | \"            \\\"\"+.key+\"\\\" = \\\"\"+.value+\"\\\";\" ), \"          };\"'\'' <<< '\''" libcs "'\''"
-              while ((cmd2 | getline l2) > 0) print l2
-              close(cmd2)
+              print "          \"" version "\" = {"
+              n2=split(bl, b, "\n")
+              for (i=1; i<=n2; i++) if (b[i] != "") print b[i]
+              print "          };"
               print "        };"
               print ""
               print "        srcHashes = {"
@@ -143,7 +163,9 @@ jobs:
           nix_path: nixpkgs=channel:nixos-unstable
 
       - name: Validate flake
+        shell: bash
         run: |
+          set -euo pipefail
           nix --version
           nix flake check --no-build --no-write-lock-file
           nix eval .#packages.x86_64-linux.crystal-binary.pname --no-write-lock-file >/dev/null
