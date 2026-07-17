@@ -94,9 +94,15 @@ jobs:
             sri="$(sri_of_file "$out")"
             libc="$(detect_libc "$out" "$tmp/extract-$s")"
 
-            hashes="$(jq -c --argjson prev "$hashes" --arg k "$s" --arg v "$sri" '$prev + {($k):$v}' <<< '{}')"
-            libcs="$(jq -c --argjson prev "$libcs" --arg k "$s" --arg v "$libc" '$prev + {($k):$v}' <<< '{}')"
+            hashes="$(jq -c --arg k "$s" --arg v "$sri" '. + {($k):$v}' <<< "$hashes")"
+            libcs="$(jq -c --arg k "$s" --arg v "$libc" '. + {($k):$v}' <<< "$libcs")"
           done
+
+          # guards
+          echo "hashes=$hashes"
+          echo "libcs=$libcs"
+          jq -e 'has("x86_64-linux") and has("aarch64-linux") and has("aarch64-darwin")' <<< "$hashes" >/dev/null
+          jq -e 'has("x86_64-linux") and has("aarch64-linux") and has("aarch64-darwin")' <<< "$libcs" >/dev/null
 
           src_out="$tmp/src.tar.gz"
           curl -fL "https://github.com/crystal-lang/crystal/archive/refs/tags/${latest_tag}.tar.gz" -o "$src_out"
