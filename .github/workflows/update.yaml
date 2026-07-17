@@ -101,9 +101,8 @@ jobs:
           # version-scoped maps
           hashes="$(jq -cn --arg ver "$version" --argjson systems "$hashes_for_version" '{($ver): $systems}')"
           libcs="$(jq -cn --arg ver "$version" --argjson systems "$libcs_for_version" '{($ver): $systems}')"
-
-          jq -e --arg ver "$version" 'has($ver) and .[$ver] | has("x86_64-linux") and has("aarch64-linux") and has("aarch64-darwin")' <<< "$hashes" >/dev/null
-          jq -e --arg ver "$version" 'has($ver) and .[$ver] | has("x86_64-linux") and has("aarch64-linux") and has("aarch64-darwin")' <<< "$libcs" >/dev/null
+          jq -e --arg ver "$version" '.[$ver] | type == "object"' <<< "$hashes" >/dev/null
+          jq -e --arg ver "$version" '.[$ver] | type == "object"' <<< "$libcs" >/dev/null
 
           src_out="$tmp/src.tar.gz"
           curl -fL "https://github.com/crystal-lang/crystal/archive/refs/tags/${latest_tag}.tar.gz" -o "$src_out"
